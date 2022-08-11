@@ -10,6 +10,8 @@
 
 #define BAASS_SLICE_LEN (1024.0 * 10.0)
 
+NSInteger BAASSDataVersion_1 = 1;
+
 static NSString *const gBAASSPackageKeyCmd = @"cmd";
 static NSString *const gBAASSPackageKeyType = @"type";
 static NSString *const gBAASSPackageKeyClient = @"client";
@@ -62,7 +64,7 @@ static NSString *const gBAASSPackageTypeStrUnk = @"unk";
     return YES;
 }
 
-+ (NSArray <NSData *> *)cutPackageIntoSlices:(NSInteger)reqID package:(NSData *)package {
++ (NSArray <NSData *> *)cutPackageIntoSlices:(NSInteger)reqID package:(NSData *)package dataVersion:(NSInteger)dataVersion {
     NSMutableArray *result = [[NSMutableArray alloc] init];
     if (package.length <= 0) {
         return result;
@@ -83,7 +85,7 @@ static NSString *const gBAASSPackageTypeStrUnk = @"unk";
             break;
         }
         NSData *slice = [package subdataWithRange:NSMakeRange(pos, size)];
-        [result addObject:[self assembleSlice:reqID count:count index:index data:slice]];
+        [result addObject:[self assembleSlice:dataVersion reqID:reqID count:count index:index data:slice]];
         pos = pos + size;
         index++;
     }
@@ -105,16 +107,24 @@ static NSString *const gBAASSPackageTypeStrUnk = @"unk";
     return result;
 }
 
-+ (BOOL)disassembleSliceBody:(NSData *)body reqID:(NSInteger *)reqID count:(NSUInteger *)count index:(NSUInteger *)index data:(NSData **)data {
++ (BOOL)disassembleSliceBody:(NSData *)body dataVersion:(NSInteger *)dataVersion reqID:(NSInteger *)reqID count:(NSUInteger *)count index:(NSUInteger *)index data:(NSData **)data {
+    int32_t versionLen = sizeof(int32_t);
     int32_t dataStartLen = sizeof(int32_t);
     int32_t keyLen = sizeof(int32_t);
     int32_t countLen = sizeof(int32_t);
     int32_t indexLen = sizeof(int32_t);
-    int32_t minLen = dataStartLen + keyLen + countLen + indexLen;
+    int32_t minLen = versionLen + dataStartLen + keyLen + countLen + indexLen;
     if (body.length < minLen) {
         return NO;
     }
     NSUInteger pos = 0;
+    
+    NSData *versionData = [body subdataWithRange:NSMakeRange(pos, versionLen)];
+    NSInteger versionTmp = 0;
+    [versionData getBytes:&versionTmp length:versionLen];
+    pos = pos + versionLen;
+    BAASSSetPointerValue(dataVersion, versionTmp);
+    
     NSData *dataStartData = [body subdataWithRange:NSMakeRange(pos, dataStartLen)];
     int32_t dataStart = 0;
     [dataStartData getBytes:&dataStart length:dataStartLen];
@@ -122,6 +132,7 @@ static NSString *const gBAASSPackageTypeStrUnk = @"unk";
     if (dataStart >= body.length) {
         return NO;
     }
+    
     NSData *keyData = [body subdataWithRange:NSMakeRange(pos, keyLen)];
     NSInteger keyTmp = 0;
     [keyData getBytes:&keyTmp length:keyLen];
@@ -145,14 +156,16 @@ static NSString *const gBAASSPackageTypeStrUnk = @"unk";
 }
 
 #pragma mark - private methods
-+ (NSData *)assembleSlice:(NSInteger)reqID count:(NSUInteger)count index:(NSUInteger)index data:(NSData *)data {
++ (NSData *)assembleSlice:(NSInteger)version reqID:(NSInteger)reqID count:(NSUInteger)count index:(NSUInteger)index data:(NSData *)data {
+    int32_t versionLength = sizeof(int32_t);
     int32_t keyLength = sizeof(int32_t);
     int32_t countLength = sizeof(int32_t);
     int32_t indexLength = sizeof(int32_t);
-    int32_t dataStart = sizeof(int32_t) + keyLength + countLength + indexLength;
-    int64_t fullLength = sizeof(dataStart) + keyLength + countLength + indexLength + data.length;
+    int32_t dataStart = sizeof(int32_t) + versionLength + keyLength + countLength + indexLength;
+    int64_t fullLength = versionLength + sizeof(dataStart) + keyLength + countLength + indexLength + data.length;
     
     NSData *fullLengthData = [NSData dataWithBytes:&fullLength length:sizeof(fullLength)];
+    NSData *versionData = [NSData dataWithBytes:&version length:versionLength];
     NSData *dataStartData = [NSData dataWithBytes:&dataStart length:sizeof(dataStart)];
     NSData *keyData = [NSData dataWithBytes:&reqID length:keyLength];
     NSData *countData = [NSData dataWithBytes:&count length:countLength];
@@ -160,6 +173,7 @@ static NSString *const gBAASSPackageTypeStrUnk = @"unk";
     
     NSMutableData *fullData = [[NSMutableData alloc] init];
     [fullData appendData:fullLengthData];
+    [fullData appendData:versionData];
     [fullData appendData:dataStartData];
     [fullData appendData:keyData];
     [fullData appendData:countData];

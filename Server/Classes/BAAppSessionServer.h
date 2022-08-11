@@ -14,6 +14,10 @@ typedef NS_ENUM(NSUInteger, BAASSLogLevel) {
     BAASSLogLevelVerbose = 3,
 };
 
+extern NSString *const BAASSClientConnectedNotification;
+extern NSString *const BAASSClientDisconnectedNotification;
+extern NSString *const BAASSNotificationUserInfoKeyClient;
+
 @class BAAppSessionServer;
 
 @protocol BAAppSessionServerObserverProtocol <NSObject>

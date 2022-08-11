@@ -207,7 +207,7 @@ void BAASCLogV(const char *file, const char *func, int line, BAASCLogPriority pr
 #pragma mark - private methods
 #pragma mark request methods
 - (void)cutPackageAndSend:(NSData *)package reqID:(NSInteger)reqID {
-    NSArray *slices = [BAASCDataWorkshop cutPackageIntoSlices:reqID package:package];
+    NSArray *slices = [BAASCDataWorkshop cutPackageIntoSlices:reqID package:package dataVersion:BAASCDataVersion_1];
     if (slices.count <= 0) {
         BAASCErrorLog(@"count of slices cut form package is 0, reqID=%ld, package len=%ld", reqID, package.length);
         [self onReqFailed:reqID error:BAASCEasyError(20001, @"slices count is zero", nil)];
@@ -244,10 +244,11 @@ void BAASCLogV(const char *file, const char *func, int line, BAASCLogPriority pr
 
 #pragma mark response methods
 - (void)processResSliceBody:(NSData *)slice {
+    NSInteger version;
     NSInteger resID;
     NSUInteger count, index = 0;
     NSData *data = nil;
-    BOOL success = [BAASCDataWorkshop disassembleSliceBody:slice reqID:&resID count:&count index:&index data:&data];
+    BOOL success = [BAASCDataWorkshop disassembleSliceBody:slice dataVersion:&version reqID:&resID count:&count index:&index data:&data];
     if (!success) {
         BAASCErrorLog(@"disassemble slice body failed");
         return;

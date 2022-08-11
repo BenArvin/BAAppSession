@@ -30,6 +30,10 @@ typedef NS_ENUM(NSUInteger, BAASSLogPriority) {
 #define BAASSWarningLog(...) BAASSLogV(__FILE__, __FUNCTION__, __LINE__, BAASSLogPriorityWarning, self, __VA_ARGS__)
 #define BAASSErrorLog(...) BAASSLogV(__FILE__, __FUNCTION__, __LINE__, BAASSLogPriorityError, self, __VA_ARGS__)
 
+NSString *const BAASSClientConnectedNotification = @"BAASSClientConnectedNotification";
+NSString *const BAASSClientDisconnectedNotification = @"BAASSClientDisconnectedNotification";
+NSString *const BAASSNotificationUserInfoKeyClient = @"client";
+
 @interface BAAppSessionServer() <BAASSGCDAsyncSocketDelegate> {
 }
 
@@ -131,7 +135,8 @@ void BAASSLogV(const char *file, const char *func, int line, BAASSLogPriority pr
         [self stopWatchdog];
         [self.socket disconnect];
         NSArray *allClientKeys = [[self.clients allKeys] copy];
-        for (BAASSClientInfo *item in allClientKeys) {
+        for (NSString *keyItem in allClientKeys) {
+            BAASSClientInfo *item = [self.clients objectForKey:keyItem];
             [item.socket disconnect];
         }
         [self.clients removeAllObjects];
@@ -294,6 +299,7 @@ void BAASSLogV(const char *file, const char *func, int line, BAASSLogPriority pr
     [self.clients setObject:info forKey:@(info.ID)];
     [newSocket readDataToLength:[BAASSDataWorkshop sliceHeaderLength] withTimeout:-1 tag:BAASS_TAG_HEADER];
     BAASSInfoLog(@"socket of client(%ld) accepted", info.ID);
+    [self postOnClientConnectedMessage:info.ID];
 }
 
 - (void)socketDidDisconnect:(BAASSGCDAsyncSocket *)sock withError:(NSError *)err {
@@ -311,6 +317,7 @@ void BAASSLogV(const char *file, const char *func, int line, BAASSLogPriority pr
         }
     }
     BAASSInfoLog(@"socket of client(%ld) disconnected", clientID);
+    [self postOnClientDisconnectedMessage:clientID];
 }
 
 - (void)socket:(BAASSGCDAsyncSocket *)sock didReadData:(NSData *)data withTag:(long)tag {
@@ -341,10 +348,11 @@ void BAASSLogV(const char *file, const char *func, int line, BAASSLogPriority pr
 }
 
 - (void)processReqSliceBody:(NSData *)slice client:(NSInteger)client {
+    NSInteger version;
     NSInteger reqID;
     NSUInteger count, index = 0;
     NSData *data = nil;
-    BOOL success = [BAASSDataWorkshop disassembleSliceBody:slice reqID:&reqID count:&count index:&index data:&data];
+    BOOL success = [BAASSDataWorkshop disassembleSliceBody:slice dataVersion:&version reqID:&reqID count:&count index:&index data:&data];
     if (!success) {
         BAASSErrorLog(@"disassemble slice body form client %ld failed", client);
         return;
@@ -480,7 +488,7 @@ void BAASSLogV(const char *file, const char *func, int line, BAASSLogPriority pr
 
 - (void)cutPackageAndSend:(NSData *)package client:(NSInteger)client completion:(void(^)(BOOL success, NSError *error))completion {
     NSInteger resID = [self.resIDCounter next];
-    NSArray *slices = [BAASSDataWorkshop cutPackageIntoSlices:resID package:package];
+    NSArray *slices = [BAASSDataWorkshop cutPackageIntoSlices:resID package:package dataVersion:BAASSDataVersion_1];
     BAASSResponse *res = [[BAASSResponse alloc] init];
     res.client = client;
     res.resID = resID;
@@ -602,6 +610,25 @@ void BAASSLogV(const char *file, const char *func, int line, BAASSLogPriority pr
         default:
             return @"INFO";
     }
+}
+
+#pragma mark protocol methods
+- (void)postOnClientConnectedMessage:(NSInteger)client {
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(self.outputQueue, ^{
+        [[NSNotificationCenter defaultCenter] postNotificationName:BAASSClientConnectedNotification object:weakSelf userInfo:@{
+            BAASSNotificationUserInfoKeyClient: @(client)
+        }];
+    });
+}
+
+- (void)postOnClientDisconnectedMessage:(NSInteger)client {
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(self.outputQueue, ^{
+        [[NSNotificationCenter defaultCenter] postNotificationName:BAASSClientDisconnectedNotification object:weakSelf userInfo:@{
+            BAASSNotificationUserInfoKeyClient: @(client)
+        }];
+    });
 }
 
 #pragma mark others

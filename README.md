@@ -5,19 +5,25 @@
 [![License](https://img.shields.io/cocoapods/l/BAAppSession.svg?style=flat)](https://cocoapods.org/pods/BAAppSession)
 [![Platform](https://img.shields.io/cocoapods/p/BAAppSession.svg?style=flat)](https://cocoapods.org/pods/BAAppSession)
 
-## Example
+BAAppSession is an iOS Cocoa library for communicating between processes, with HTTP style API, based on GCDAsyncSocket.
 
-To run the example project, clone the repo, and run `pod install` from the Example directory first.
+## Features
 
-## Requirements
+- [x] selfdefine connection port
+- [x] listening connect/disconnect event
+- [x] send request from client, and response it from server
+- [x] boardcast message to all client, or push messge to specified client
 
 ## Installation
 
-BAAppSession is available through [CocoaPods](https://cocoapods.org). To install
-it, simply add the following line to your Podfile:
+BAAppSession is available through CocoaPods. To install it, simply add the following line to your Podfile:
 
-```ruby
-pod 'BAAppSession'
+```
+# pod library for client
+pod 'BAAppSessionClient'
+
+# pod library for server
+pod 'BAAppSessionServer'
 ```
 
 ## Author
